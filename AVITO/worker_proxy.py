@@ -47,6 +47,7 @@ def get_proxy(ban=[], bad=[]):
 
         except Exception as e:
             bad.append(proxy)
+            time.sleep(0.333)
             continue
 
 

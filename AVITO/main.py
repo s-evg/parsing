@@ -10,9 +10,9 @@ from worker_proxy import get_proxy, my_ip
 from user_agent_mobile import user_agent
 
 
-# URL = 'https://www.avito.ru/sverdlovskaya_oblast_zarechnyy/kvartiry'
+URL = 'https://www.avito.ru/sverdlovskaya_oblast_zarechnyy/kvartiry'
 # URL = 'https://www.avito.ru/sverdlovskaya_oblast_zarechnyy/noutbuki'
-URL = 'https://www.avito.ru/sverdlovskaya_oblast_zarechnyy/telefony/statsionarnye_telefoni-ASgBAgICAUSwwQ2M_Dc'
+# URL = 'https://www.avito.ru/sverdlovskaya_oblast_zarechnyy/telefony/statsionarnye_telefoni-ASgBAgICAUSwwQ2M_Dc'
 # URL = 'https://www.avito.ru/moskva_i_mo/avtomobili/s_probegom/chevrolet-ASgBAgICAkSGFMjmAeC2DfaXKA'
 HEADERS = {"user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36"}
 
@@ -39,8 +39,10 @@ def page_pars():
         page_count = soup.find_all('span', class_="pagination-item-JJq_j")
         amount_page = int(page_count[-2].text)
 
-        p = 1
-        for i in tqdm(range(1)):
+        p = 2
+
+        for i in tqdm(range(1)): # временно для скрапа по первой странице
+        # for i in tqdm(2, amount_page + 1 ): # скрап со второй страницы
             url = URL + '?p=' + str(p)
             response = requests.get(url=url, headers=HEADERS, timeout=9)
             soup = bs(response.content, 'lxml')
@@ -88,10 +90,11 @@ def phone_pars(id):
             except TypeError:
                 print('Перебрали весь список, идём по новой.')
                 ban.clear()
-                bad.clear()
+                # bad.clear()
                 print(f'BAN ===>>> {ban} | BAD ===>>> {bad}')
                 proxy = get_proxy(ban, bad)
                 print(proxy)
+                proxy = proxy[0]
             ban.append(proxy)
             bad.append(proxy[-1])
             # print(bad.append(proxy[-1]))
@@ -136,9 +139,10 @@ def phone_pars(id):
 
     print(phone)
     value = random.random()
-    scaled_value = (1.618 + value) * 1.618
+    scaled_value = 1.618 / (value + 0.1618)
     print(f'{scaled_value} секунд')
     time.sleep(scaled_value)
+    print('#' * 20 + ' Собираю данные ' + '#' * 20)
     return phone
 
 
@@ -149,6 +153,8 @@ def content_pars():
     """Распарсиваем полученные блоки по содержимому."""
 
     content_list = page_pars()
+
+    print(f'Всего {len(content_list)} карточек.')
 
     for tile in tqdm(content_list):
         for cell in tile:
@@ -161,36 +167,38 @@ def content_pars():
             if cell.find('div', class_="geo-georeferences-Yd_m5"):
                 address = cell.find('div', class_="geo-georeferences-Yd_m5").get_text()
 
-            description = cell.find('div', class_="iva-item-text-_s_vh").text
+            try:
+                description = cell.find('div', class_="iva-item-text-_s_vh").get_text()
+            except AttributeError:
+                description = '---'
             link = 'www.avito.ru' + cell.find('a', class_="iva-item-sliderLink-bJ9Pv").get('href')
             id = link.split('_')[-1]
-            phone = phone_pars(id)
+            # phone = phone_pars(id)
+            if '?' in id:
+                id = id.split('?')[0]
             info[id] = {
                     'title': title,
                     'price': price,
                     'address': address,
                     'description': description,
                     'link': link,
-                    'phone': phone
+                    # 'phone': phone
             }
-            value = random.random()
-            scaled_value = (1.618 + value) * 1.618
-            time.sleep(scaled_value)
-            print(f'Спим {scaled_value} секунд')
-            print('#'*20 + ' Собираю данные ' + '#'*20)
 
     return info
 
 
-def write():
+def write_to_json():
     """Записываем результаты"""
-    with open('info.json', 'w') as file:
-        json.dump(info, file, indent=2)
+    current_time = time.strftime('%Y-%m-%d_%H:%M')
+    with open(f'info_{current_time}.json', 'w') as file:
+        sorted_info = sorted(info.items(), key=lambda x: x[0])
+        json.dump(dict(sorted_info), file, ensure_ascii=False, indent=2)
 
 
 if __name__ == '__main__':
     start = time.time()
     pprint(content_pars())
-    write()
+    write_to_json()
     # print(phone_pars('2275250788'))
     print(time.time() - start)
