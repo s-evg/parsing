@@ -10,10 +10,7 @@ from worker_proxy import get_proxy, my_ip
 from user_agent_mobile import user_agent
 
 
-URL = 'https://www.avito.ru/sverdlovskaya_oblast_zarechnyy/kvartiry'
-# URL = 'https://www.avito.ru/sverdlovskaya_oblast_zarechnyy/noutbuki'
-# URL = 'https://www.avito.ru/sverdlovskaya_oblast_zarechnyy/telefony/statsionarnye_telefoni-ASgBAgICAUSwwQ2M_Dc'
-# URL = 'https://www.avito.ru/moskva_i_mo/avtomobili/s_probegom/chevrolet-ASgBAgICAkSGFMjmAeC2DfaXKA'
+URL = input('Введите адрес раздела AVITO для парсинга:\n>>> ')
 HEADERS = {"user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36"}
 
 
@@ -41,8 +38,8 @@ def page_pars():
 
         p = 2
 
-        for i in tqdm(range(1)): # временно для скрапа по первой странице
-        # for i in tqdm(2, amount_page + 1 ): # скрап со второй страницы
+        # for i in tqdm(range(1)): # временно для скрапа по первой странице
+        for i in tqdm(range(2, amount_page + 1)):  # скрап со второй страницы
             url = URL + '?p=' + str(p)
             response = requests.get(url=url, headers=HEADERS, timeout=9)
             soup = bs(response.content, 'lxml')
@@ -61,13 +58,9 @@ def page_pars():
 
         return content_list
 
-# ip_my = my_ip() # опционально получаем свой IP
-ban = [] # создаём список забаненых IP
-bad = [] # плохие IP
 
 def phone_pars(id):
     """Получаем телефон, если он доступен"""
-
 
     url = f'https://m.avito.ru/api/1/items/{id}/phone'
     params = {
@@ -77,10 +70,18 @@ def phone_pars(id):
     agent = random.choice(user_agent)
     headers = {"user-agent": f"{agent}"}
 
-    response = requests.get(url=url, headers=headers, params=params)
-    print(response.status_code)
+    # ip_my = my_ip() # опционально получаем свой IP
+    ban = []  # создаём список забаненых IP
+    bad = []  # плохие IP
+
     run = True
     while run:
+        try:
+            response = requests.get(url=url, headers=headers, params=params)
+        except requests.exceptions.ConnectionError:
+            print('Кажется слишком долго нет ответа...\nЖдём одну мнуту...')
+            time.sleep(60)
+
         if response.status_code != 200:
             print('IP временно заблокирован.\nМинуточку, выбираю другой IP...')
             proxy = get_proxy(ban, bad)
@@ -90,14 +91,11 @@ def phone_pars(id):
             except TypeError:
                 print('Перебрали весь список, идём по новой.')
                 ban.clear()
-                # bad.clear()
-                print(f'BAN ===>>> {ban} | BAD ===>>> {bad}')
                 proxy = get_proxy(ban, bad)
-                print(proxy)
                 proxy = proxy[0]
+
             ban.append(proxy)
             bad.append(proxy[-1])
-            # print(bad.append(proxy[-1]))
             session = requests.Session()
             session.proxies = {'http': proxy, 'https': proxy}
             agent = random.choice(user_agent)
@@ -106,30 +104,34 @@ def phone_pars(id):
             try:
                 response = session.get(url=url, headers=headers, params=params, timeout=10)
                 print(response)
+
             except requests.exceptions.ProxyError:
                 print('Переподключение к сереверам AVITO...')
                 time.sleep(random.randint(7, 15))
+
             except requests.exceptions.SSLError:
                 print('Превышено число подключений...\nПереподключение через 10 сек')
                 time.sleep(random.randint(5, 11))
+
             except requests.exceptions.ConnectTimeout:
                 print('Сервер долго не отвечает...\nЖдёмс =)')
                 time.sleep(random.randint(3, 13))
+
             except requests.exceptions.ConnectionError:
                 print('Ошибка подключения...\nЖдёмс =)')
                 time.sleep(random.randint(3, 13))
+
             except AttributeError:
                 print('Был достигнут конец списка,\nи что-то пошло не так\nПробуем ещё раз...')
                 time.sleep(1.618)
+
             except requests.exceptions.ReadTimeout:
                 print('Error ReadTimeout...')
                 time.sleep(1.618)
 
         else:
             run = False
-            # print(proxy)
 
-    print(response.json())
     try:
         phone = response.json()['result']['action']['uri'].split('=')[-1]
         phone = phone.replace('%2B', '+')
@@ -139,14 +141,16 @@ def phone_pars(id):
 
     print(phone)
     value = random.random()
-    scaled_value = 1.618 / (value + 0.1618)
+    # TODO увеличить паузу до 6__8 сек скорей всего лимит 9 запросов в минуту
+
+    scaled_value = (5.5 + value) * 1.618  # от 8.899 до 10.517 сек
     print(f'{scaled_value} секунд')
     time.sleep(scaled_value)
     print('#' * 20 + ' Собираю данные ' + '#' * 20)
     return phone
 
 
-info = {} #карточки объявлений
+info = {}  # карточки объявлений
 
 
 def content_pars():
@@ -156,8 +160,8 @@ def content_pars():
 
     print(f'Всего {len(content_list)} карточек.')
 
-    for tile in tqdm(content_list):
-        for cell in tile:
+    for tile in content_list:
+        for cell in tqdm(tile):
             title = cell.find('h3', class_="title-root-j7cja").text
             price = cell.find('span', class_="price-price-BQkOZ").text
 
@@ -171,25 +175,28 @@ def content_pars():
                 description = cell.find('div', class_="iva-item-text-_s_vh").get_text()
             except AttributeError:
                 description = '---'
+
             link = 'www.avito.ru' + cell.find('a', class_="iva-item-sliderLink-bJ9Pv").get('href')
             id = link.split('_')[-1]
-            # phone = phone_pars(id)
+            phone = phone_pars(id)
+
             if '?' in id:
-                id = id.split('?')[0]
+                id = id.split('?')[0]  # бывает посли id идут параметры, отсеиваем их.
+
             info[id] = {
-                    'title': title,
-                    'price': price,
-                    'address': address,
-                    'description': description,
-                    'link': link,
-                    # 'phone': phone
+                'title': title,
+                'price': price,
+                'address': address,
+                'description': description,
+                'link': link,
+                'phone': phone
             }
 
     return info
 
 
 def write_to_json():
-    """Записываем результаты"""
+    """Записываем результаты, отсирторировав по ключу."""
     current_time = time.strftime('%Y-%m-%d_%H:%M')
     with open(f'info_{current_time}.json', 'w') as file:
         sorted_info = sorted(info.items(), key=lambda x: x[0])
@@ -200,5 +207,4 @@ if __name__ == '__main__':
     start = time.time()
     pprint(content_pars())
     write_to_json()
-    # print(phone_pars('2275250788'))
     print(time.time() - start)
