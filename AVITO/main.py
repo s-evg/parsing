@@ -60,6 +60,11 @@ def page_pars():
         return content_list
 
 
+# ip_my = my_ip() # опционально получаем свой IP
+ban = []  # создаём список забаненых IP
+bad = []  # плохие IP
+
+
 def phone_pars(id):
     """Получаем телефон, если он доступен"""
 
@@ -72,33 +77,33 @@ def phone_pars(id):
     mobile_agent = random.choice(mobile)
     headers = {"user-agent": f"{mobile_agent}"}
 
-    # ip_my = my_ip() # опционально получаем свой IP
-    ban = []  # создаём список забаненых IP
-    bad = []  # плохие IP
+
 
     run = True
     while run:
-        try:
-            response = requests.get(url=url, headers=headers, params=params)
+        response = requests.get(url=url, headers=headers, params=params)
+
+        if response.status_code == 200:
             run = False
 
-            if response.status_code != 200:
-
-                print('IP временно заблокирован.\nМинуточку, выбираю другой IP...')
+        else:
+            print('IP временно заблокирован.\nМинуточку, выбираю другой IP...')
+            proxy = get_proxy(ban, bad)
+            print(proxy)
+            try:
+                proxy = proxy[0]
+            except TypeError:
+                print('Перебрали весь список, идём по новой.')
+                ban.clear()
                 proxy = get_proxy(ban, bad)
-                print(proxy)
-                try:
-                    proxy = proxy[0]
-                except TypeError:
-                    print('Перебрали весь список, идём по новой.')
-                    ban.clear()
-                    proxy = get_proxy(ban, bad)
-                    proxy = proxy[0]
+                proxy = proxy[0]
+            ban.append(proxy)
+            bad.append(proxy[-1])
+            session = requests.Session()
+            session.proxies = {'http': proxy, 'https': proxy}
 
-                ban.append(proxy)
-                bad.append(proxy[-1])
-                session = requests.Session()
-                session.proxies = {'http': proxy, 'https': proxy}
+        try:
+            response = requests.get(url=url, headers=headers, params=params)
 
         except requests.exceptions.ProxyError:
             print('Переподключение к сереверам AVITO...')
@@ -173,8 +178,8 @@ def content_pars():
         Если собирать то по api это очень долго (пока),
         возможно распознание изображение с телефоном будет быстрее...
         """
-        # phone = phone_pars(id)  # TODO сделать возможность выбора: собирать телефон или нет
-        phone = 'test'   # затычка для ускорения процесса
+        phone = phone_pars(id)  # TODO сделать возможность выбора: собирать телефон или нет
+        # phone = 'test'   # затычка для ускорения процесса
 
         if '?' in id:
             id = id.split('?')[0]  # бывает посли id идут параметры, отсеиваем их.

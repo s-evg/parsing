@@ -16,9 +16,14 @@ def pars():
     """Парсим список доступных IP адресов."""
 
     response = requests.get(url=url, headers=headers)
-    soup = bs(response.content, 'html.parser')
-    proxy_list = soup.find('textarea').get_text().split('\n')[3:-1]
-    return proxy_list
+    while True:
+        if response.status_code == 200:
+            soup = bs(response.content, 'html.parser')
+            proxy_list = soup.find('textarea').get_text().split('\n')[3:-1]
+            return proxy_list
+        else:
+            print('Не удалось получить список IP\nПереподулючение через 30 сек')
+            time.sleep(30)
 
 
 bad_proxies = [] # список для плохих прокси
